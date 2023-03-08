@@ -74,17 +74,13 @@ class UIStyleOptions extends ParagraphsBehaviorBase {
    * {@inheritdoc}
    */
   public function buildBehaviorForm(ParagraphInterface $paragraph, array &$form, FormStateInterface $form_state) {
-    [$group_key, $enabled_style_ids] = $this->getEnabledStyles();
+    $enabled_style_ids = $this->getEnabledStyles();
     $def = [];
     foreach ($enabled_style_ids as $id) {
       $def[] = $this->ui_styles_manager->getDefinition($id);
     }
     // Load selected values.
-    $selected = [];
-    $keys = array_keys($def);
-    foreach ($keys as $key) {
-      $selected[$key] = $paragraph->getBehaviorSetting($this->pluginId, 'ui_styles_' . $key);
-    }
+    $selected = $this->getFlattenedSettings($paragraph);
     foreach ($def as $definition) {
       $id = $definition->id();
       $element_name = 'ui_styles_' . $id;
@@ -93,7 +89,7 @@ class UIStyleOptions extends ParagraphsBehaviorBase {
         '#title' => $definition->getLabel(),
         '#options' => $definition->getOptionsAsOptions(),
         '#empty_option' => $this->t('- None -'),
-        '#default_value' => $selected[$id] ?? '',
+        '#default_value' => $selected[$element_name] ?? '',
         '#weight' => $definition->getWeight(),
       ];
 
@@ -121,7 +117,12 @@ class UIStyleOptions extends ParagraphsBehaviorBase {
    * {@inheritdoc}
    */
   public function view(array &$build, Paragraph $paragraph, EntityViewDisplayInterface $display, $view_mode) {
-
+    $classes = $this->getFlattenedSettings($paragraph);
+    foreach ($classes as $key => $class) {
+      if ($class) {
+        $build['#attributes']['class'][] = $class;
+      }
+    }
   }
 
   /**
@@ -224,7 +225,10 @@ class UIStyleOptions extends ParagraphsBehaviorBase {
   }
 
   /**
+   * Return enabled styles as flattened array.
+   *
    * @return array
+   *   List of enabled styles.
    */
   public function getEnabledStyles(): array {
     // Get enabled styles.
@@ -242,7 +246,32 @@ class UIStyleOptions extends ParagraphsBehaviorBase {
     }
 
     $enabled_style_ids = \array_values(\array_filter($flattened_style_ids));
-    return [$group_key, $enabled_style_ids];
+    return $enabled_style_ids;
+  }
+
+  /**
+   * Get settings for paragraph as flattened array.
+   *
+   * @param \Drupal\paragraphs\Entity\Paragraph $paragraph
+   *  The paragraph entity.
+   * @return array
+   *  Flattened array.
+   */
+  public function getFlattenedSettings(Paragraph $paragraph): array {
+    $values = $paragraph->getBehaviorSetting($this->pluginId, []);
+    $classes = [];
+    foreach ($values as $group_key => $group_styles) {
+      // Style without group will directly be 0 or the style id.
+      if (!\is_array($group_styles)) {
+        $classes[$group_key] = $group_styles;
+      }
+      else {
+        foreach ($group_styles as $style_id => $style_value) {
+          $classes[$style_id] = $style_value;
+        }
+      }
+    }
+    return $classes;
   }
 
 }
